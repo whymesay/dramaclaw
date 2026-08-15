@@ -470,6 +470,15 @@ INDEXTTS2_RECORD_PROVIDER = "newapi" if INDEXTTS2_PROVIDER == "newapi" else "fal
 INDEXTTS2_RECORD_MODEL = INDEXTTS2_NEWAPI_MODEL if INDEXTTS2_PROVIDER == "newapi" else "IndexTTS2"
 NEWAPI_IMAGE_MODEL = os.environ.get("NEWAPI_IMAGE_MODEL", "LingShan-G2")
 NEWAPI_NANOBANANA2_MODEL = os.environ.get("NEWAPI_NANOBANANA2_MODEL", "LingShan-NB-2")
+NEWAPI_IMAGE_EDIT_TRANSPORT = (
+    os.environ.get("NEWAPI_IMAGE_EDIT_TRANSPORT", "json_url").strip().lower()
+    or "json_url"
+)
+if NEWAPI_IMAGE_EDIT_TRANSPORT not in {"json_url", "multipart"}:
+    raise ValueError(
+        "Invalid NEWAPI_IMAGE_EDIT_TRANSPORT: "
+        f"{NEWAPI_IMAGE_EDIT_TRANSPORT!r}; expected 'json_url' or 'multipart'"
+    )
 SCENE_MASTER_IMAGE_PROVIDER = (
     os.environ.get("SCENE_MASTER_IMAGE_PROVIDER", "").strip().lower() or "newapi"
 )

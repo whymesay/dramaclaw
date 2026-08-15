@@ -3468,11 +3468,14 @@ async def _call_newapi_image_api(
     if input_fidelity and reference_images:
         payload["input_fidelity"] = input_fidelity
 
+    from novelvideo.config import NEWAPI_IMAGE_EDIT_TRANSPORT
+
     if reference_images:
-        try:
-            payload["image"] = await _relay_reference_images_for_newapi(reference_images)
-        except Exception as exc:
-            return None, "", f"media relay upload failed: {exc}"
+        if NEWAPI_IMAGE_EDIT_TRANSPORT == "json_url":
+            try:
+                payload["image"] = await _relay_reference_images_for_newapi(reference_images)
+            except Exception as exc:
+                return None, "", f"media relay upload failed: {exc}"
         request_path = "/images/edits"
     else:
         request_path = "/images/generations"
@@ -3503,10 +3506,10 @@ async def _call_newapi_image_api(
         prompt=prompt,
     )
     logger.info("DramaClawAPI image request: %s", request_context)
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    use_multipart = bool(reference_images) and NEWAPI_IMAGE_EDIT_TRANSPORT == "multipart"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    if not use_multipart:
+        headers["Content-Type"] = "application/json"
 
     async def _reserve(source: str) -> str:
         return await get_usage_meter().reserve_current_model_call_credit(
@@ -3591,11 +3594,19 @@ async def _call_newapi_image_api(
             follow_redirects=True,
         ) as client:
             logger.info("DramaClawAPI image POST start: %s", request_context.get("endpoint"))
-            response = await client.post(
-                f"{endpoint}{request_path}",
-                headers=headers,
-                json=payload,
-            )
+            if use_multipart:
+                response = await client.post(
+                    f"{endpoint}{request_path}",
+                    headers=headers,
+                    data=_newapi_multipart_form_data(payload),
+                    files=_newapi_reference_image_files(reference_images or []),
+                )
+            else:
+                response = await client.post(
+                    f"{endpoint}{request_path}",
+                    headers=headers,
+                    json=payload,
+                )
             logger.info(
                 "DramaClawAPI image POST response: status=%s bytes=%s",
                 getattr(response, "status_code", "?"),
@@ -3790,6 +3801,51 @@ async def _relay_reference_images_for_newapi(
         return urls
 
     return await asyncio.to_thread(upload_all)
+
+
+def _newapi_multipart_form_data(payload: dict[str, object]) -> dict[str, str]:
+    """Convert an Images API payload to scalar multipart form fields."""
+    form_data: dict[str, str] = {}
+    for key, value in payload.items():
+        if value is None or key == "image":
+            continue
+        if isinstance(value, bool):
+            form_data[key] = str(value).lower()
+        elif isinstance(value, (dict, list)):
+            form_data[key] = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        else:
+            form_data[key] = str(value)
+    width = payload.get("width")
+    height = payload.get("height")
+    if width and height:
+        form_data["size"] = f"{width}x{height}"
+    return form_data
+
+
+def _newapi_reference_image_files(
+    reference_images: list[bytes | tuple[bytes, str] | tuple[str, bytes, str]],
+) -> list[tuple[str, tuple[str, bytes, str]]]:
+    """Build repeated image[] file parts without copying them through media relay."""
+    files: list[tuple[str, tuple[str, bytes, str]]] = []
+    for index, image_ref in enumerate(reference_images, start=1):
+        filename = f"reference_{index}.png"
+        mime_type = "image/png"
+        if isinstance(image_ref, tuple) and len(image_ref) == 3:
+            filename = str(image_ref[0] or filename)
+            image_bytes = bytes(image_ref[1])
+            mime_type = str(image_ref[2] or mime_type)
+        elif isinstance(image_ref, tuple):
+            image_bytes = bytes(image_ref[0])
+            hint = str(image_ref[1] or "")
+            if hint.startswith("image/"):
+                mime_type = hint
+                filename = f"reference_{index}.{hint.split('/', 1)[1]}"
+            elif hint:
+                filename = Path(hint).name or filename
+        else:
+            image_bytes = bytes(image_ref)
+        files.append(("image[]", (filename, image_bytes, mime_type)))
+    return files
 
 
 async def _call_huimeng_image_api(
