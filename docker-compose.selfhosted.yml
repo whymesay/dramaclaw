@@ -38,6 +38,8 @@ services:
       NEWAPI_SQLITE_PATH: /newapi-data/one-api.db
       NEWAPI_ADMIN_USERNAME: root
       NEWAPI_PROVISIONER_ENABLED: "true"
+      # OpenAI 图片编辑默认直传参考图；Seedream 等非 OpenAI 模型仍自动使用 JSON URL。
+      NEWAPI_IMAGE_EDIT_TRANSPORT: "${NEWAPI_IMAGE_EDIT_TRANSPORT:-multipart}"
     # 宿主发布端口可配，便于一机多套（每套换 ST_API_PORT + 换 -p 项目名）。
     # 冒号右侧 8780 是容器内端口，固定不变（web 经内部网络访问它）。
     ports:

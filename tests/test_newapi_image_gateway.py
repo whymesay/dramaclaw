@@ -715,6 +715,7 @@ def test_newapi_image_call_omits_quality_for_nanobanana2(monkeypatch):
 
 def test_newapi_image_call_relays_reference_images(monkeypatch):
     import httpx
+    import novelvideo.config as config
     from novelvideo.generators import nanobanana_grid
 
     posted = {}
@@ -747,6 +748,7 @@ def test_newapi_image_call_relays_reference_images(monkeypatch):
         return f"https://relay.test/{len(relayed)}.png"
 
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(config, "NEWAPI_IMAGE_EDIT_TRANSPORT", "json_url")
     monkeypatch.setattr(nanobanana_grid, "upload_image_bytes", fake_upload_image_bytes)
 
     image_bytes, _text, error = run_async(
@@ -791,6 +793,156 @@ def test_newapi_image_call_relays_reference_images(monkeypatch):
     assert posted["json"]["output_format"] == "png"
     assert posted["json"]["input_fidelity"] == "high"
     assert "extra_fields" not in posted["json"]
+
+
+def test_newapi_image_edit_can_upload_references_as_multipart(monkeypatch):
+    import httpx
+    import novelvideo.config as config
+    from novelvideo.generators import nanobanana_grid
+
+    posted = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": [{"b64_json": base64.b64encode(b"image-bytes").decode()}]}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, *, headers, data, files):
+            posted.update(url=url, headers=headers, data=data, files=files)
+            return FakeResponse()
+
+    def fail_media_relay(*args, **kwargs):
+        pytest.fail("multipart edits must not upload reference images to media relay")
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(config, "NEWAPI_IMAGE_EDIT_TRANSPORT", "multipart")
+    monkeypatch.setattr(nanobanana_grid, "upload_image_bytes", fail_media_relay)
+
+    image_bytes, _text, error = run_async(
+        nanobanana_grid._call_newapi_image_api(
+            api_key="newapi-token",
+            model="LingShan-G2",
+            prompt="identity prompt",
+            reference_images=[
+                ("first.png", b"ref-a", "image/png"),
+                (b"ref-b", "image/jpeg"),
+            ],
+            image_config={
+                "aspect_ratio": "3:4",
+                "image_size": "1K",
+                "quality": "medium",
+            },
+            base_url="http://newapi.test/v1",
+        )
+    )
+
+    assert image_bytes == b"image-bytes"
+    assert error == ""
+    assert posted["url"] == "http://newapi.test/v1/images/edits"
+    assert posted["headers"] == {"Authorization": "Bearer newapi-token"}
+    assert posted["data"]["model"] == "LingShan-G2"
+    assert posted["data"]["prompt"] == "identity prompt"
+    assert posted["data"]["n"] == "1"
+    assert posted["data"]["size"] == "768x1024"
+    assert posted["data"]["quality"] == "medium"
+    assert posted["data"]["response_format"] == "b64_json"
+    assert posted["data"]["watermark"] == "false"
+    assert [field for field, _file in posted["files"]] == ["image[]", "image[]"]
+    assert posted["files"][0][1] == ("first.png", b"ref-a", "image/png")
+    assert posted["files"][1][1] == ("reference_2.jpeg", b"ref-b", "image/jpeg")
+
+
+@pytest.mark.parametrize("model", ["seedream-5.0-pro", "LingShan-NB-2"])
+def test_newapi_non_openai_image_edits_keep_json_urls_in_multipart_mode(
+    monkeypatch,
+    model,
+):
+    import httpx
+    import novelvideo.config as config
+    from novelvideo.generators import nanobanana_grid
+
+    posted = {}
+    relayed = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": [{"b64_json": base64.b64encode(b"image-bytes").decode()}]}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, *, headers, json):
+            posted.update(url=url, headers=headers, json=json)
+            return FakeResponse()
+
+    def fake_upload_image_bytes(data, **kwargs):
+        relayed.append(data)
+        return "https://relay.test/reference.png"
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(config, "NEWAPI_IMAGE_EDIT_TRANSPORT", "multipart")
+    monkeypatch.setattr(nanobanana_grid, "upload_image_bytes", fake_upload_image_bytes)
+
+    image_bytes, _text, error = run_async(
+        nanobanana_grid._call_newapi_image_api(
+            api_key="newapi-token",
+            model=model,
+            prompt="edit prompt",
+            reference_images=[b"reference"],
+            image_config={"aspect_ratio": "1:1", "image_size": "1K"},
+            base_url="http://newapi.test/v1",
+        )
+    )
+
+    assert image_bytes == b"image-bytes"
+    assert error == ""
+    assert relayed == [b"reference"]
+    assert posted["url"] == "http://newapi.test/v1/images/edits"
+    assert posted["headers"]["Content-Type"] == "application/json"
+    assert posted["json"]["image"] == ["https://relay.test/reference.png"]
+
+
+def test_newapi_image_edit_transport_defaults_to_json_url(monkeypatch):
+    monkeypatch.delenv("NEWAPI_IMAGE_EDIT_TRANSPORT", raising=False)
+
+    import novelvideo.config as config
+
+    config = importlib.reload(config)
+
+    assert config.NEWAPI_IMAGE_EDIT_TRANSPORT == "json_url"
+
+
+def test_newapi_image_edit_transport_rejects_invalid_value(monkeypatch):
+    import novelvideo.config as config
+
+    monkeypatch.setenv("NEWAPI_IMAGE_EDIT_TRANSPORT", "unsupported")
+    with pytest.raises(ValueError, match="Invalid NEWAPI_IMAGE_EDIT_TRANSPORT.*unsupported"):
+        importlib.reload(config)
+
+    monkeypatch.setenv("NEWAPI_IMAGE_EDIT_TRANSPORT", "json_url")
+    importlib.reload(config)
 
 
 def test_newapi_image_call_preserves_reference_image_extensions(monkeypatch):

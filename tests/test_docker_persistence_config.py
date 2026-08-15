@@ -34,3 +34,14 @@ def test_env_example_configures_data_root_instead_of_individual_directories() ->
 
     assert re.search(r"^NOVELVIDEO_OUTPUT_DIR=", env_example, re.MULTILINE) is None
     assert "# NOVELVIDEO_DATA_ROOT=" in env_example
+
+
+def test_selfhosted_compose_defaults_newapi_image_edits_to_multipart() -> None:
+    compose = yaml.safe_load(
+        (REPOSITORY_ROOT / "docker-compose.selfhosted.yml").read_text()
+    )
+
+    assert (
+        compose["services"]["api"]["environment"]["NEWAPI_IMAGE_EDIT_TRANSPORT"]
+        == "${NEWAPI_IMAGE_EDIT_TRANSPORT:-multipart}"
+    )
