@@ -375,7 +375,7 @@ def normalize_image_size(size: str, provider: str = "google") -> str:
     return size
 
 
-def _newapi_image_model_supports_quality(model: str | None) -> bool:
+def _newapi_image_model_uses_openai_edit_protocol(model: str | None) -> bool:
     model_name = str(model or "").strip().lower()
     return model_name in {
         "lingshan-g2",
@@ -383,6 +383,25 @@ def _newapi_image_model_supports_quality(model: str | None) -> bool:
         "image-2",
         "image-2-official",
     } or "gpt-image" in model_name
+
+
+def _newapi_image_model_supports_quality(model: str | None) -> bool:
+    return _newapi_image_model_uses_openai_edit_protocol(model)
+
+
+def _newapi_image_edit_transport(model: str, configured_transport: str) -> str:
+    """Resolve edit transport without sending non-OpenAI models as multipart.
+
+    NewAPI's OpenAI image-edit channels accept file parts, while Seedream and
+    other image model families expect reference URLs in a JSON request.
+    ``json_url`` remains an explicit compatibility override for every model.
+    """
+    if (
+        configured_transport == "multipart"
+        and _newapi_image_model_uses_openai_edit_protocol(model)
+    ):
+        return "multipart"
+    return "json_url"
 
 
 def _image_credit_billing_params(
@@ -3470,8 +3489,9 @@ async def _call_newapi_image_api(
 
     from novelvideo.config import NEWAPI_IMAGE_EDIT_TRANSPORT
 
+    edit_transport = _newapi_image_edit_transport(model, NEWAPI_IMAGE_EDIT_TRANSPORT)
     if reference_images:
-        if NEWAPI_IMAGE_EDIT_TRANSPORT == "json_url":
+        if edit_transport == "json_url":
             try:
                 payload["image"] = await _relay_reference_images_for_newapi(reference_images)
             except Exception as exc:
@@ -3506,7 +3526,7 @@ async def _call_newapi_image_api(
         prompt=prompt,
     )
     logger.info("DramaClawAPI image request: %s", request_context)
-    use_multipart = bool(reference_images) and NEWAPI_IMAGE_EDIT_TRANSPORT == "multipart"
+    use_multipart = bool(reference_images) and edit_transport == "multipart"
     headers = {"Authorization": f"Bearer {api_key}"}
     if not use_multipart:
         headers["Content-Type"] = "application/json"
