@@ -4315,6 +4315,22 @@
           "video": "视频",
           "audio": "音频"
         }
+      },
+      "autodl": {
+        "title": "AutoDL 视频工作流",
+        "directBadge": "直连服务",
+        "description": "独立于 NewAPI 的视频生成服务。当前用于 MiniMax H3 图片参考视频，不会改变 NewAPI 网关模式。",
+        "baseUrl": "服务地址",
+        "token": "Authorization Token",
+        "tokenPlaceholder": "输入 Token",
+        "toggleToken": "显示或隐藏 Token",
+        "keepToken": "留空将保留已保存的 Token。",
+        "timeout": "请求超时（秒）",
+        "storageHint": "本地参考图会使用“存储”页配置的媒体中继上传并加签。",
+        "save": "保存 AutoDL",
+        "saved": "AutoDL 配置已保存",
+        "invalid": "请填写有效的服务地址和正数超时。",
+        "tokenRequired": "首次配置必须填写 Token。"
       }
     },
     "mediaStorage": {

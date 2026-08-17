@@ -77,6 +77,14 @@ class EffectiveMediaRelayConfig:
 
 
 @dataclass(frozen=True)
+class EffectiveAutoDLConfig:
+    source: str
+    base_url: str
+    token: str
+    request_timeout_seconds: float
+
+
+@dataclass(frozen=True)
 class EffectiveCogneeEmbeddingConfig:
     source: str
     provider: str
@@ -908,6 +916,60 @@ def save_media_relay_config(
             "cloudinary_relay_folder": str(cloudinary_folder or "").strip().strip("/"),
         }
     )
+
+
+def save_autodl_config(
+    *, base_url: str, token: str, request_timeout_seconds: float = 60.0
+) -> None:
+    _write_many(
+        {
+            "autodl_base_url": str(base_url or "").strip().rstrip("/"),
+            "autodl_token": str(token or "").strip(),
+            "autodl_request_timeout_seconds": str(float(request_timeout_seconds)),
+        }
+    )
+
+
+def get_effective_autodl_config(
+    *,
+    env_base_url: str | None = None,
+    env_token: str | None = None,
+    env_request_timeout_seconds: float | str | None = None,
+) -> EffectiveAutoDLConfig:
+    settings = get_model_gateway_settings() if _uses_ce_gateway_settings() else {}
+    db_base_url = str(settings.get("autodl_base_url", "")).strip().rstrip("/")
+    db_token = str(settings.get("autodl_token", "")).strip()
+    if db_base_url or db_token:
+        return EffectiveAutoDLConfig(
+            source="database",
+            base_url=db_base_url,
+            token=db_token,
+            request_timeout_seconds=float(
+                settings.get("autodl_request_timeout_seconds") or 60
+            ),
+        )
+    return EffectiveAutoDLConfig(
+        source="environment",
+        base_url=str(env_base_url or os.environ.get("AUTODL_BASE_URL", ""))
+        .strip()
+        .rstrip("/"),
+        token=str(env_token or os.environ.get("AUTODL_TOKEN", "")).strip(),
+        request_timeout_seconds=float(
+            env_request_timeout_seconds
+            or os.environ.get("AUTODL_REQUEST_TIMEOUT_SECONDS", "60")
+        ),
+    )
+
+
+def build_autodl_status() -> dict[str, Any]:
+    config = get_effective_autodl_config()
+    return {
+        "source": config.source,
+        "configured": bool(config.base_url and config.token),
+        "baseUrl": config.base_url,
+        "tokenPreview": mask_secret(config.token),
+        "requestTimeoutSeconds": config.request_timeout_seconds,
+    }
 
 
 def get_model_gateway_settings() -> dict[str, str]:

@@ -67,6 +67,7 @@ import {
   useSaveProviderChannels,
   useClearComfyUIConfig,
   useSaveMediaRelayConfig,
+  useSaveAutoDLConfig,
   useSyncProviderChannel,
   type GatewayMode,
   type ModelGatewayConfig,
@@ -547,7 +548,174 @@ function ModelConfigSection({ open }: { open: boolean }) {
           ) : null}
         </>
       ) : null}
+      <AutoDLConfigPanel config={config} />
     </section>
+  );
+}
+
+function AutoDLConfigPanel({
+  config,
+}: {
+  config: ModelGatewayConfig | undefined;
+}) {
+  const { t } = useTranslation();
+  const saveAutoDL = useSaveAutoDLConfig();
+  const autodl = config?.autodl;
+  const [baseUrl, setBaseUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [timeoutSeconds, setTimeoutSeconds] = useState("60");
+  const [revealToken, setRevealToken] = useState(false);
+
+  useEffect(() => {
+    if (!autodl) return;
+    setBaseUrl(autodl.baseUrl || "");
+    setTimeoutSeconds(String(autodl.requestTimeoutSeconds || 60));
+    setToken("");
+  }, [autodl]);
+
+  const handleSave = async () => {
+    const timeout = Number(timeoutSeconds);
+    if (!baseUrl.trim() || !Number.isFinite(timeout) || timeout <= 0) {
+      toast.error(t("settings.modelConfig.autodl.invalid"));
+      return;
+    }
+    if (!autodl?.configured && !token.trim()) {
+      toast.error(t("settings.modelConfig.autodl.tokenRequired"));
+      return;
+    }
+    try {
+      const response = await saveAutoDL.mutateAsync({
+        baseUrl: baseUrl.trim(),
+        ...(token.trim() ? { token: token.trim() } : {}),
+        requestTimeoutSeconds: timeout,
+      });
+      if (!response.ok) {
+        toast.error(
+          getResponseErrorMessage(
+            response,
+            t("settings.modelConfig.requestFailed"),
+          ),
+        );
+        return;
+      }
+      setToken("");
+      setRevealToken(false);
+      toast.success(t("settings.modelConfig.autodl.saved"));
+    } catch (error) {
+      toast.error(
+        await getRequestErrorMessage(
+          error,
+          t("settings.modelConfig.requestFailed"),
+        ),
+      );
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-md border border-border/70 bg-white/[0.02] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                autodl?.configured ? "bg-emerald-400" : "bg-amber-400",
+              )}
+            />
+            <h4 className="text-sm font-medium text-foreground">
+              {t("settings.modelConfig.autodl.title")}
+            </h4>
+            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {t("settings.modelConfig.autodl.directBadge")}
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            {t("settings.modelConfig.autodl.description")}
+          </p>
+        </div>
+        {autodl?.source ? (
+          <span className="text-[10px] text-muted-foreground">
+            {autodl.source}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="autodl-base-url">
+            {t("settings.modelConfig.autodl.baseUrl")}
+          </Label>
+          <Input
+            id="autodl-base-url"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder="https://autodl.example.com"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="autodl-token">
+            {t("settings.modelConfig.autodl.token")}
+          </Label>
+          <div className="relative">
+            <Input
+              id="autodl-token"
+              type={revealToken ? "text" : "password"}
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              placeholder={
+                autodl?.tokenPreview ||
+                t("settings.modelConfig.autodl.tokenPlaceholder")
+              }
+              className="pr-9"
+            />
+            <button
+              type="button"
+              onClick={() => setRevealToken((value) => !value)}
+              className="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground"
+              aria-label={t("settings.modelConfig.autodl.toggleToken")}
+            >
+              {revealToken ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          </div>
+          {autodl?.configured ? (
+            <p className="text-[10px] text-muted-foreground">
+              {t("settings.modelConfig.autodl.keepToken")}
+            </p>
+          ) : null}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="autodl-timeout">
+            {t("settings.modelConfig.autodl.timeout")}
+          </Label>
+          <Input
+            id="autodl-timeout"
+            type="number"
+            min="1"
+            value={timeoutSeconds}
+            onChange={(event) => setTimeoutSeconds(event.target.value)}
+          />
+        </div>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-[11px] text-muted-foreground">
+          {t("settings.modelConfig.autodl.storageHint")}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSave}
+          disabled={saveAutoDL.isPending}
+        >
+          {saveAutoDL.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : null}
+          {t("settings.modelConfig.autodl.save")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
