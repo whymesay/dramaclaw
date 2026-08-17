@@ -144,7 +144,7 @@ def test_factory_and_freezone_catalog_keep_autodl_separate_from_newapi():
         if item["id"] == AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND
     )
     assert option["providerId"] == "autodl"
-    assert option["supportedModes"] == ["imageReference"]
+    assert option["supportedModes"] == ["image_reference"]
     assert option["referenceImageMax"] == 9
 
 
