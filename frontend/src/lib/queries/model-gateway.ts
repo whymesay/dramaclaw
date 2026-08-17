@@ -115,6 +115,14 @@ export interface MediaRelayConfig {
   configured: boolean;
 }
 
+export interface AutoDLConfig {
+  source: string;
+  configured: boolean;
+  baseUrl: string;
+  tokenPreview: string;
+  requestTimeoutSeconds: number;
+}
+
 export interface ModelGatewayConfig {
   mode: GatewayMode;
   effective: EffectiveGatewayConfig;
@@ -122,6 +130,7 @@ export interface ModelGatewayConfig {
   custom: CustomGatewayConfig;
   provisioner?: ModelGatewayProvisionerConfig;
   mediaRelay?: MediaRelayConfig;
+  autodl?: AutoDLConfig;
 }
 
 export interface OfficialMediaCatalogStatus {
@@ -245,6 +254,12 @@ export interface SaveMediaRelayConfigInput {
   apiKey?: string;
   apiSecret?: string;
   apiFolder?: string;
+}
+
+export interface SaveAutoDLConfigInput {
+  baseUrl: string;
+  token?: string;
+  requestTimeoutSeconds: number;
 }
 
 export interface SaveCustomChannelsBatchInput {
@@ -464,7 +479,11 @@ export function useInitCustomNewApi() {
           timeout: 60_000,
           throwHttpErrors: false,
         })
-        .json<OkResponse<InitCustomNewApiResult> | ErrorResponse | FastApiErrorResponse>(),
+        .json<
+          | OkResponse<InitCustomNewApiResult>
+          | ErrorResponse
+          | FastApiErrorResponse
+        >(),
     onSuccess: (data) => {
       if (data.ok === true) {
         qc.invalidateQueries({ queryKey: queryKeys.modelGateway() });
@@ -472,7 +491,6 @@ export function useInitCustomNewApi() {
     },
   });
 }
-
 
 /** 保存供应商渠道级配置。 */
 export function useSaveProviderChannels() {
@@ -549,7 +567,11 @@ export function useSyncProviderChannel() {
           timeout: 60_000,
           throwHttpErrors: false,
         })
-        .json<OkResponse<SyncProviderChannelResult> | ErrorResponse | FastApiErrorResponse>(),
+        .json<
+          | OkResponse<SyncProviderChannelResult>
+          | ErrorResponse
+          | FastApiErrorResponse
+        >(),
     onSuccess: (data) => {
       if (data.ok === true) {
         qc.invalidateQueries({ queryKey: queryKeys.modelGateway() });
@@ -562,7 +584,12 @@ export function useSyncProviderChannel() {
 export function useSaveCustomChannel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CustomChannelInput & { newApiBaseUrl: string; database?: NewApiDatabaseConfigInput }) =>
+    mutationFn: (
+      input: CustomChannelInput & {
+        newApiBaseUrl: string;
+        database?: NewApiDatabaseConfigInput;
+      },
+    ) =>
       api
         .post("api/v1/model-gateway/custom/newapi/channels", {
           json: input,
@@ -620,6 +647,23 @@ export function useSaveMediaRelayConfig() {
           timeout: 60_000,
         })
         .json<OkResponse<MediaRelayConfig> | ErrorResponse>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.modelGateway() });
+    },
+  });
+}
+
+/** 保存独立 AutoDL 工作流服务配置；不写入 NewAPI 渠道。 */
+export function useSaveAutoDLConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveAutoDLConfigInput) =>
+      api
+        .post("api/v1/model-gateway/autodl/config", {
+          json: input,
+          timeout: 60_000,
+        })
+        .json<OkResponse<AutoDLConfig> | ErrorResponse>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.modelGateway() });
     },

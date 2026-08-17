@@ -14,14 +14,17 @@ from novelvideo.model_gateway_settings import (
     MODE_CUSTOM,
     MODE_OFFICIAL,
     MODE_HYBRID,
+    build_autodl_status,
     build_media_relay_status,
     build_model_gateway_status,
+    get_effective_autodl_config,
     get_effective_media_relay_config,
     get_official_media_catalog_update_status,
     normalize_relay_base_url,
     normalize_api_key,
     parse_comfyui_channel_workflows,
     save_media_relay_config,
+    save_autodl_config,
     save_official_media_catalog_auto_update,
     save_official_newapi_key,
     save_custom_newapi_gateway,
@@ -163,6 +166,12 @@ class MediaRelayConfigBody(BaseModel):
     cloudinary_api_key: str | None = Field(default=None, alias="apiKey")
     cloudinary_api_secret: str | None = Field(default=None, alias="apiSecret")
     cloudinary_folder: str | None = Field(default=None, alias="apiFolder")
+
+
+class AutoDLConfigBody(BaseModel):
+    base_url: str = Field(alias="baseUrl")
+    token: str | None = None
+    request_timeout_seconds: float = Field(default=60, alias="requestTimeoutSeconds")
 
 
 class NewApiDatabaseBody(BaseModel):
@@ -474,6 +483,7 @@ async def get_model_gateway_config() -> dict[str, Any]:
             ),
             "provisioner": build_provisioner_status(),
             "mediaRelay": _media_relay_status(),
+            "autodl": build_autodl_status(),
         },
     }
 
@@ -696,6 +706,31 @@ async def save_media_relay_settings(body: MediaRelayConfigBody) -> dict[str, Any
         cloudinary_folder=cloudinary_folder,
     )
     return {"ok": True, "data": _media_relay_status()}
+
+
+@router.post("/autodl/config")
+async def save_autodl_settings(body: AutoDLConfigBody) -> dict[str, Any]:
+    try:
+        require_ce_gateway_management()
+    except PermissionError as exc:
+        raise _permission_error(exc) from exc
+    base_url = body.base_url.strip().rstrip("/")
+    current = get_effective_autodl_config()
+    token = body.token.strip() if body.token and body.token.strip() else current.token
+    if not base_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="baseUrl must be an HTTP URL")
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+    if body.request_timeout_seconds <= 0:
+        raise HTTPException(
+            status_code=400, detail="requestTimeoutSeconds must be positive"
+        )
+    save_autodl_config(
+        base_url=base_url,
+        token=token,
+        request_timeout_seconds=body.request_timeout_seconds,
+    )
+    return {"ok": True, "data": build_autodl_status()}
 
 
 @router.post("/custom/newapi/init")

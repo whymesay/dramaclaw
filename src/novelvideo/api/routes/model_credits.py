@@ -174,6 +174,8 @@ def _video_backend_cost_model(backend: str) -> str:
     clean_backend = backend.strip()
     if not clean_backend:
         raise HTTPException(status_code=400, detail="video backend is required")
+    if clean_backend == "autodl_minimax-h3-image-reference":
+        return "minimax-h3-local"
 
     from novelvideo.generators.huimengi import parse_huimeng_video_backend
     from novelvideo.generators.video_generator import (

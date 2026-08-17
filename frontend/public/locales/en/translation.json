@@ -4315,6 +4315,22 @@
           "video": "Video",
           "audio": "Audio"
         }
+      },
+      "autodl": {
+        "title": "AutoDL video workflows",
+        "directBadge": "Direct service",
+        "description": "A video service independent from NewAPI. Currently used for MiniMax H3 image-reference video and does not change the active NewAPI gateway mode.",
+        "baseUrl": "Service URL",
+        "token": "Authorization token",
+        "tokenPlaceholder": "Enter token",
+        "toggleToken": "Show or hide token",
+        "keepToken": "Leave blank to keep the saved token.",
+        "timeout": "Request timeout (seconds)",
+        "storageHint": "Local reference images use the media relay configured on the Storage page.",
+        "save": "Save AutoDL",
+        "saved": "AutoDL configuration saved",
+        "invalid": "Enter a valid service URL and a positive timeout.",
+        "tokenRequired": "A token is required for initial setup."
       }
     },
     "mediaStorage": {
