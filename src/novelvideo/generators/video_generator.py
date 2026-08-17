@@ -3706,6 +3706,13 @@ def create_video_generator(
         return MockVideoGenerator(**kwargs)
 
     backend_str = _coerce_video_backend_value(backend)
+    from novelvideo.generators.autodl import (
+        AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+        AutoDLMinimaxH3ImageReferenceGenerator,
+    )
+
+    if backend_str == AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND:
+        return AutoDLMinimaxH3ImageReferenceGenerator(**kwargs)
     newapi_model = parse_newapi_video_backend(backend_str)
     if newapi_model:
         return NewApiVideoGenerator(model=newapi_model, **kwargs)

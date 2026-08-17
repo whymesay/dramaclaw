@@ -7518,6 +7518,11 @@ async def _resolve_catalog_video_backend(model: str | None) -> str:
     return resolve_freezone_video_backend(model)
 
 
+def _require_autodl_image_reference_mode(backend: str, mode: str) -> None:
+    if backend == "autodl_minimax-h3-image-reference" and mode != "imageReference":
+        raise HTTPException(400, "MiniMax H3 AutoDL only supports imageReference mode")
+
+
 @router.get("/projects/{project}/freezone/video/camera-templates", tags=[TAG_FREEZONE_VIDEO])
 async def freezone_video_camera_templates(
     project: str,
@@ -7536,9 +7541,22 @@ async def freezone_video_models(
     """视频处理：返回和 NovelVideo 视频模型下拉一致的可见模型。"""
     await _resolve_freezone_project(project, user, required_role="viewer")
     catalog = await _ee_media_model_catalog("video")
+    local_options = get_freezone_video_model_options()
+    if catalog is not None:
+        catalog = list(catalog)
+        identifiers = {
+            identifier
+            for entry in catalog
+            for identifier in _catalog_entry_identifiers(entry)
+        }
+        catalog.extend(
+            entry
+            for entry in local_options
+            if entry["providerId"] == "autodl" and entry["id"] not in identifiers
+        )
     return {
         "ok": True,
-        "data": get_freezone_video_model_options() if catalog is None else catalog,
+        "data": local_options if catalog is None else catalog,
     }
 
 
@@ -8078,6 +8096,7 @@ async def freezone_video_gen(
         backend = await _resolve_catalog_video_backend(body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _require_autodl_image_reference_mode(backend, body.gen_mode)
 
     request_schema, model_params, capabilities = await _resolve_catalog_request(
         "video",
@@ -8173,6 +8192,7 @@ async def freezone_video_i2v(
         backend = await _resolve_catalog_video_backend(body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _require_autodl_image_reference_mode(backend, body.gen_mode)
 
     requested_mode = body.gen_mode
     execution_mode = "image_reference"
@@ -8210,6 +8230,7 @@ async def freezone_video_i2v(
         len(source_paths) > 1
         and not is_freezone_seedance2_backend(backend)
         and not is_freezone_happyhorse_backend(backend)
+        and backend != "autodl_minimax-h3-image-reference"
     ):
         raise HTTPException(
             400,
@@ -8299,6 +8320,7 @@ async def freezone_video_keyframes(
         backend = await _resolve_catalog_video_backend(body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _require_autodl_image_reference_mode(backend, body.gen_mode)
 
     requested_mode = body.gen_mode
     execution_mode = (
@@ -8421,6 +8443,7 @@ async def freezone_video_omni_gen(
         backend = await _resolve_catalog_video_backend(body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _require_autodl_image_reference_mode(backend, body.gen_mode)
     request_schema, model_params, capabilities = await _resolve_catalog_request(
         "video",
         body.model,
@@ -8570,6 +8593,7 @@ async def freezone_video_edit(
         backend = await _resolve_catalog_video_backend(body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _require_autodl_image_reference_mode(backend, body.gen_mode)
     request_schema, model_params, capabilities = await _resolve_catalog_request(
         "video",
         body.model,
