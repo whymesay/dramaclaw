@@ -7254,6 +7254,26 @@ def _catalog_entry_id(entry: dict[str, Any] | None) -> str:
     return str(entry.get("catalogId") or entry.get("catalog_id") or "").strip()
 
 
+def _append_local_autodl_video_options(
+    catalog: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """Keep locally executed AutoDL models visible and resolvable with an EE catalog."""
+    if catalog is None:
+        return None
+    merged = list(catalog)
+    identifiers = {
+        identifier
+        for entry in merged
+        for identifier in _catalog_entry_identifiers(entry)
+    }
+    merged.extend(
+        entry
+        for entry in get_freezone_video_model_options()
+        if entry["providerId"] == "autodl" and entry["id"] not in identifiers
+    )
+    return merged
+
+
 def _catalog_image_execution_selection(
     entry: dict[str, Any] | None,
     *,
@@ -7294,6 +7314,8 @@ async def _resolve_catalog_request(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
     requested = str(model or "").strip()
     catalog = await _ee_media_model_catalog(media_type)
+    if media_type == "video":
+        catalog = _append_local_autodl_video_options(catalog)
     entry = next(
         (
             item
@@ -7542,18 +7564,7 @@ async def freezone_video_models(
     await _resolve_freezone_project(project, user, required_role="viewer")
     catalog = await _ee_media_model_catalog("video")
     local_options = get_freezone_video_model_options()
-    if catalog is not None:
-        catalog = list(catalog)
-        identifiers = {
-            identifier
-            for entry in catalog
-            for identifier in _catalog_entry_identifiers(entry)
-        }
-        catalog.extend(
-            entry
-            for entry in local_options
-            if entry["providerId"] == "autodl" and entry["id"] not in identifiers
-        )
+    catalog = _append_local_autodl_video_options(catalog)
     return {
         "ok": True,
         "data": local_options if catalog is None else catalog,

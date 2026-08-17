@@ -7538,6 +7538,31 @@ async def test_disabled_or_removed_catalog_model_is_rejected_without_static_fall
 
 
 @pytest.mark.asyncio
+async def test_local_autodl_video_model_resolves_with_authoritative_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_catalog(media_type: str) -> list[dict[str, object]]:
+        assert media_type == "video"
+        return []
+
+    monkeypatch.setattr(freezone_routes, "_ee_media_model_catalog", fake_catalog)
+    model = "autodl_minimax-h3-image-reference"
+
+    schema, values, entry = await freezone_routes._resolve_catalog_request(
+        "video",
+        model,
+        {},
+        mode="imageReference",
+    )
+
+    assert schema == {}
+    assert values == {}
+    assert entry is not None
+    assert entry["id"] == model
+    assert entry["providerId"] == "autodl"
+
+
+@pytest.mark.asyncio
 async def test_catalog_id_resolves_without_breaking_legacy_model_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
