@@ -7546,7 +7546,7 @@ async def test_local_autodl_video_model_resolves_with_authoritative_catalog(
         return []
 
     monkeypatch.setattr(freezone_routes, "_ee_media_model_catalog", fake_catalog)
-    model = "autodl_minimax-h3-image-reference"
+    model = "autodl_minimax-h3"
 
     schema, values, entry = await freezone_routes._resolve_catalog_request(
         "video",

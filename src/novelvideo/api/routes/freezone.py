@@ -274,6 +274,7 @@ from novelvideo.freezone.video_node import (
     MAX_OMNI_REFERENCE_AUDIO_TOTAL_SECONDS,
     MIN_OMNI_REFERENCE_AUDIO_SECONDS,
 )
+from novelvideo.generators.autodl import AUTODL_MINIMAX_H3_BACKEND
 from novelvideo.models import CharacterIdentity, beat_scene_id
 from novelvideo.project_config import (
     load_effective_narration_style_for_voice,
@@ -7541,7 +7542,7 @@ async def _resolve_catalog_video_backend(model: str | None) -> str:
 
 
 def _require_autodl_image_reference_mode(backend: str, mode: str) -> None:
-    if backend == "autodl_minimax-h3-image-reference" and mode != "imageReference":
+    if backend == AUTODL_MINIMAX_H3_BACKEND and mode != "imageReference":
         raise HTTPException(400, "MiniMax H3 AutoDL only supports imageReference mode")
 
 
@@ -8241,7 +8242,7 @@ async def freezone_video_i2v(
         len(source_paths) > 1
         and not is_freezone_seedance2_backend(backend)
         and not is_freezone_happyhorse_backend(backend)
-        and backend != "autodl_minimax-h3-image-reference"
+        and backend != AUTODL_MINIMAX_H3_BACKEND
     ):
         raise HTTPException(
             400,

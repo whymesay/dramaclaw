@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from novelvideo.freezone.paths import freezone_root
-from novelvideo.generators.autodl import AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND
+from novelvideo.generators.autodl import AUTODL_MINIMAX_H3_BACKEND
 from novelvideo.video_duration import (
     normalize_video_duration_for_backend as normalize_video_duration_for_backend,
     video_duration_bounds_for_backend,
@@ -289,13 +289,13 @@ def get_freezone_video_model_options() -> list[dict[str, Any]]:
         data.append(item)
     data.append(
         {
-            "id": AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+            "id": AUTODL_MINIMAX_H3_BACKEND,
             "providerId": "autodl",
             "provider": "autodl",
-            "apiModel": AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
-            "api_model": AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+            "apiModel": AUTODL_MINIMAX_H3_BACKEND,
+            "api_model": AUTODL_MINIMAX_H3_BACKEND,
             "label": "MiniMax H3 (AutoDL 图片参考)",
-            "backend": AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+            "backend": AUTODL_MINIMAX_H3_BACKEND,
             "resolutionOptions": ["480p", "768p", "1080p"],
             "resolution_options": ["480p", "768p", "1080p"],
             "ratioOptions": ["9:16", "16:9"],
@@ -324,7 +324,7 @@ def get_freezone_video_model_names() -> list[str]:
 def resolve_freezone_video_backend(model: str | None) -> str:
     text = str(model or "").strip()
     options = _freezone_newapi_video_options()
-    if text == AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND:
+    if text == AUTODL_MINIMAX_H3_BACKEND:
         return text
     if not text:
         return (

@@ -8,7 +8,7 @@ from typing import Any
 from .client import AutoDLWorkflowClient
 from .workflows import MINIMAX_H3_IMAGE_REFERENCE
 
-AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND = "autodl_minimax-h3-image-reference"
+AUTODL_MINIMAX_H3_BACKEND = "autodl_minimax-h3"
 
 
 def minimax_h3_resolution(resolution: str | None, aspect_ratio: str | None) -> str:

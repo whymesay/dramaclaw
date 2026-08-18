@@ -131,6 +131,7 @@ class VideoBackend(Enum):
     COMFYUI = "comfyui"  # Claymore 1.0
     LTX23 = "ltx23"  # Lightricks LTX-Video 2.3 22B
     GROK_720 = "grok_720"  # xAI Grok Imagine Video 720p
+    AUTODL_MINIMAX_H3 = "autodl_minimax-h3"
 
 
 @dataclass
@@ -3706,13 +3707,6 @@ def create_video_generator(
         return MockVideoGenerator(**kwargs)
 
     backend_str = _coerce_video_backend_value(backend)
-    from novelvideo.generators.autodl import (
-        AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
-        AutoDLMinimaxH3ImageReferenceGenerator,
-    )
-
-    if backend_str == AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND:
-        return AutoDLMinimaxH3ImageReferenceGenerator(**kwargs)
     newapi_model = parse_newapi_video_backend(backend_str)
     if newapi_model:
         return NewApiVideoGenerator(model=newapi_model, **kwargs)
@@ -3749,5 +3743,9 @@ def create_video_generator(
         return ComfyUIVideoGenerator(workflow_type="ltx23", **kwargs)
     elif backend_enum == VideoBackend.GROK_720:
         return GrokVideoGenerator(**kwargs)
+    elif backend_enum == VideoBackend.AUTODL_MINIMAX_H3:
+        from novelvideo.generators.autodl import AutoDLMinimaxH3ImageReferenceGenerator
+
+        return AutoDLMinimaxH3ImageReferenceGenerator(**kwargs)
     else:
         raise ValueError(f"Unknown video backend: {backend_str}")

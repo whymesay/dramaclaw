@@ -10,13 +10,14 @@ from novelvideo.freezone.video_node import (
 )
 from novelvideo.generators.autodl.client import AutoDLWorkflowClient
 from novelvideo.generators.autodl.minimax_h3 import (
-    AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+    AUTODL_MINIMAX_H3_BACKEND,
     AutoDLMinimaxH3ImageReferenceGenerator,
     minimax_h3_resolution,
 )
 from novelvideo.generators.autodl.workflows import MINIMAX_H3_IMAGE_REFERENCE
 from novelvideo.generators.video_generator import (
     ShotReference,
+    VideoBackend,
     VideoGenStatus,
     create_video_generator,
 )
@@ -131,21 +132,33 @@ async def test_generator_maps_nine_reference_images(monkeypatch, tmp_path):
 
 def test_factory_and_freezone_catalog_keep_autodl_separate_from_newapi():
     generator = create_video_generator(
-        AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND,
+        AUTODL_MINIMAX_H3_BACKEND,
         client=_FakeClient(),
     )
     assert isinstance(generator, AutoDLMinimaxH3ImageReferenceGenerator)
     assert resolve_freezone_video_backend(
-        AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND
-    ) == (AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND)
+        AUTODL_MINIMAX_H3_BACKEND
+    ) == (AUTODL_MINIMAX_H3_BACKEND)
     option = next(
         item
         for item in get_freezone_video_model_options()
-        if item["id"] == AUTODL_MINIMAX_H3_IMAGE_REFERENCE_BACKEND
+        if item["id"] == AUTODL_MINIMAX_H3_BACKEND
     )
     assert option["providerId"] == "autodl"
     assert option["supportedModes"] == ["image_reference"]
     assert option["referenceImageMax"] == 9
+
+
+def test_autodl_backend_has_explicit_billing_model():
+    from novelvideo.api.routes.model_credits import _video_backend_cost_model
+
+    backend = VideoBackend(AUTODL_MINIMAX_H3_BACKEND)
+
+    assert backend is VideoBackend.AUTODL_MINIMAX_H3
+    assert (
+        _video_backend_cost_model(AUTODL_MINIMAX_H3_BACKEND)
+        == backend.value
+    )
 
 
 def test_autodl_database_config_takes_precedence_over_environment(

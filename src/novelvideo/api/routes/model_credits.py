@@ -231,6 +231,8 @@ def _video_backend_cost_model(backend: str) -> str:
         from novelvideo.generators.video_generator import GrokVideoGenerator
 
         return GrokVideoGenerator.MODEL
+    if backend_enum == VideoBackend.AUTODL_MINIMAX_H3:
+        return backend_enum.value
 
     raise HTTPException(status_code=400, detail="video backend has no credit model")
 
