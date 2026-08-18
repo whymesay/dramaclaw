@@ -101,7 +101,12 @@ class AutoDLWorkflowClient:
         )
         if not isinstance(data, dict):
             raise RuntimeError("AutoDL submit returned an invalid response")
-        task_id = str(data.get("task_id") or "").strip()
+        inner = data.get("data")
+        if not isinstance(inner, dict):
+            raise RuntimeError(
+                self._response_error(data, "AutoDL submit response missing data")
+            )
+        task_id = str(inner.get("task_id") or "").strip()
         if not task_id:
             raise RuntimeError(
                 self._response_error(data, "AutoDL submit response missing task_id")
@@ -122,13 +127,20 @@ class AutoDLWorkflowClient:
         )
         if not isinstance(payload, dict):
             raise RuntimeError("AutoDL result query returned an invalid response")
-        status = str(payload.get("status") or "").strip().lower()
+        result_data = payload.get("data")
+        if not isinstance(result_data, dict):
+            raise RuntimeError(
+                self._response_error(
+                    payload, "AutoDL result query response missing data"
+                )
+            )
+        status = str(result_data.get("status") or "").strip().lower()
         if not status:
             raise RuntimeError(
                 self._response_error(payload, "AutoDL result query missing status")
             )
         output_url = ""
-        for item in payload.get("results") or []:
+        for item in result_data.get("results") or []:
             if (
                 isinstance(item, dict)
                 and str(item.get("type") or "").lower() == workflow.output_type
@@ -137,12 +149,12 @@ class AutoDLWorkflowClient:
                 if output_url:
                     break
         return AutoDLTaskResult(
-            task_id=str(payload.get("task_id") or task_id),
+            task_id=str(result_data.get("task_id") or task_id),
             status=status,
             output_url=output_url,
             request_id=str(payload.get("request_id") or ""),
-            client_id=str(payload.get("client_id") or ""),
-            message=str(payload.get("message") or payload.get("msg") or ""),
+            client_id=str(result_data.get("client_id") or ""),
+            message=str(payload.get("msg") or ""),
         )
 
     async def wait_for_result(
