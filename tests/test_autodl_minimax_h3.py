@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 import httpx
+import logging
 import pytest
 
 from novelvideo.freezone.video_node import (
@@ -39,7 +40,7 @@ def test_minimax_h3_resolution_mapping(resolution, ratio, expected):
 
 
 @pytest.mark.asyncio
-async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
+async def test_autodl_client_uses_raw_authorization_for_submit_and_result(caplog):
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -59,15 +60,30 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
         )
 
     transport = httpx.MockTransport(handler)
+    caplog.set_level(logging.INFO, logger="novelvideo.generators.autodl.client")
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = AutoDLWorkflowClient(
             base_url="https://autodl.example",
             token="plain-token",
             client=http_client,
         )
-        task_id = await client.submit(MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"})
+        task_id = await client.submit(
+            MINIMAX_H3_IMAGE_REFERENCE,
+            {
+                "prompt": "move",
+                "ref_image_0": (
+                    "https://bucket.oss-cn-chengdu.aliyuncs.com/relay/image.png"
+                    "?Signature=temporary"
+                ),
+            },
+        )
         result = await client.get_result(MINIMAX_H3_IMAGE_REFERENCE, task_id)
 
+    output = caplog.text
+    assert "AutoDL submit request" in output
+    assert '"ref_image_0":"https://bucket.oss-cn-chengdu.aliyuncs.com/' in output
+    assert "Signature=temporary" in output
+    assert "plain-token" not in output
     assert task_id == "task-1"
     assert result.output_url == "https://cdn.example/video.mp4"
     assert [request.headers["Authorization"] for request in requests] == [
