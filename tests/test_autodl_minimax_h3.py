@@ -49,14 +49,12 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
         return httpx.Response(
             200,
             json={
-                "code": "Success",
-                "data": {
-                    "status": "completed",
-                    "task_id": "task-1",
-                    "results": [
-                        {"url": "https://cdn.example/video.mp4", "type": "video"}
-                    ],
-                },
+                "status": "SUCCESS",
+                "task_id": "task-1",
+                "client_id": "client-1",
+                "results": [
+                    {"url": "https://cdn.example/video.mp4", "type": "video"}
+                ],
             },
         )
 
@@ -70,6 +68,7 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
         task_id = await client.submit(MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"})
         result = await client.get_result(MINIMAX_H3_IMAGE_REFERENCE, task_id)
 
+    assert task_id == "task-1"
     assert result.output_url == "https://cdn.example/video.mp4"
     assert [request.headers["Authorization"] for request in requests] == [
         "plain-token",
@@ -77,6 +76,24 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
     ]
     assert requests[0].url.path.endswith("/minimax_h3_lightx2v_v5")
     assert requests[1].url.path.endswith("/result/task-1")
+
+
+@pytest.mark.asyncio
+async def test_autodl_submit_surfaces_upstream_error_message():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={"code": "InvalidToken", "message": "token group must be ComfyUI"},
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AutoDLWorkflowClient(
+            base_url="https://autodl.art",
+            token="wrong-token",
+            client=http_client,
+        )
+        with pytest.raises(RuntimeError, match="token group must be ComfyUI"):
+            await client.submit(MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"})
 
 
 class _FakeClient:

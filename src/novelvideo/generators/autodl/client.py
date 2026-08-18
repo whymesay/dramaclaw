@@ -54,6 +54,17 @@ class AutoDLWorkflowClient:
         self._validate()
         return {"Authorization": self.token}
 
+    @staticmethod
+    def _response_error(payload: Any, fallback: str) -> str:
+        if not isinstance(payload, dict):
+            return fallback
+        for key in ("message", "msg", "detail", "error"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        code = str(payload.get("code") or "").strip()
+        return f"{fallback}: {code}" if code else fallback
+
     async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         if self._client is not None:
             response = await self._client.request(
@@ -74,9 +85,13 @@ class AutoDLWorkflowClient:
             "POST", f"{self.base_url}{workflow.submit_path}", json=payload
         )
         data = response.json()
+        if not isinstance(data, dict):
+            raise RuntimeError("AutoDL submit returned an invalid response")
         task_id = str(data.get("task_id") or "").strip()
         if not task_id:
-            raise RuntimeError("AutoDL submit response missing task_id")
+            raise RuntimeError(
+                self._response_error(data, "AutoDL submit response missing task_id")
+            )
         return task_id
 
     async def get_result(
@@ -85,12 +100,15 @@ class AutoDLWorkflowClient:
         path = workflow.result_path_template.format(task_id=task_id)
         response = await self._request("GET", f"{self.base_url}{path}")
         payload = response.json()
-        if str(payload.get("code") or "").lower() != "success":
-            raise RuntimeError(str(payload.get("msg") or "AutoDL result query failed"))
-        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-        status = str(data.get("status") or "").strip().lower()
+        if not isinstance(payload, dict):
+            raise RuntimeError("AutoDL result query returned an invalid response")
+        status = str(payload.get("status") or "").strip().lower()
+        if not status:
+            raise RuntimeError(
+                self._response_error(payload, "AutoDL result query missing status")
+            )
         output_url = ""
-        for item in data.get("results") or []:
+        for item in payload.get("results") or []:
             if (
                 isinstance(item, dict)
                 and str(item.get("type") or "").lower() == workflow.output_type
@@ -99,12 +117,12 @@ class AutoDLWorkflowClient:
                 if output_url:
                     break
         return AutoDLTaskResult(
-            task_id=str(data.get("task_id") or task_id),
+            task_id=str(payload.get("task_id") or task_id),
             status=status,
             output_url=output_url,
             request_id=str(payload.get("request_id") or ""),
-            client_id=str(data.get("client_id") or ""),
-            message=str(payload.get("msg") or ""),
+            client_id=str(payload.get("client_id") or ""),
+            message=str(payload.get("message") or payload.get("msg") or ""),
         )
 
     async def wait_for_result(
