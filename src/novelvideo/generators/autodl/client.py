@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -12,8 +10,6 @@ from typing import Any, Callable
 import httpx
 
 from .workflows import AutoDLWorkflowSpec
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -86,15 +82,7 @@ class AutoDLWorkflowClient:
         self, workflow: AutoDLWorkflowSpec, payload: dict[str, Any]
     ) -> str:
         url = f"{self.base_url}{workflow.submit_path}"
-        logger.info(
-            "AutoDL submit request url=%s workflow=%s payload=%s",
-            url,
-            workflow.id,
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-        )
-        response = await self._request(
-            "POST", url, json=payload
-        )
+        response = await self._request("POST", url, json=payload)
         data = response.json()
         if not isinstance(data, dict):
             raise RuntimeError("AutoDL submit returned an invalid response")

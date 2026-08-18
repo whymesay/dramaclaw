@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -49,18 +50,22 @@ class AutoDLMinimaxH3ImageReferenceGenerator:
         return list(dict.fromkeys(value for value in values if value))
 
     @staticmethod
-    def _to_url(value: str) -> str:
-        if value.startswith(("http://", "https://")):
+    def _to_data_url(value: str) -> str:
+        if value.startswith("data:image/") and ";base64," in value:
             return value
         path = Path(value)
-        if path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+        mime_type = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+        }.get(path.suffix.lower())
+        if mime_type is None:
             raise ValueError(f"unsupported MiniMax H3 reference image: {value}")
-        from novelvideo.storage.media_relay import upload_image_file
-
-        url = upload_image_file(path, ttl=7200)
-        if not url:
-            raise RuntimeError(f"failed to upload or presign reference image: {value}")
-        return url
+        if not path.is_file():
+            raise ValueError(f"MiniMax H3 reference image not found: {value}")
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        return f"data:{mime_type};base64,{encoded}"
 
     async def generate(
         self,
@@ -101,7 +106,7 @@ class AutoDLMinimaxH3ImageReferenceGenerator:
             }
             payload.update(
                 {
-                    f"ref_image_{index}": self._to_url(value)
+                    f"ref_image_{index}": self._to_data_url(value)
                     for index, value in enumerate(images)
                 }
             )

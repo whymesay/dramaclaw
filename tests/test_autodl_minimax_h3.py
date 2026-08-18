@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 
+import base64
 import httpx
-import logging
 import pytest
 
 from novelvideo.freezone.video_node import (
@@ -40,7 +40,7 @@ def test_minimax_h3_resolution_mapping(resolution, ratio, expected):
 
 
 @pytest.mark.asyncio
-async def test_autodl_client_uses_raw_authorization_for_submit_and_result(caplog):
+async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -60,30 +60,15 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result(caplog
         )
 
     transport = httpx.MockTransport(handler)
-    caplog.set_level(logging.INFO, logger="novelvideo.generators.autodl.client")
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = AutoDLWorkflowClient(
             base_url="https://autodl.example",
             token="plain-token",
             client=http_client,
         )
-        task_id = await client.submit(
-            MINIMAX_H3_IMAGE_REFERENCE,
-            {
-                "prompt": "move",
-                "ref_image_0": (
-                    "https://bucket.oss-cn-chengdu.aliyuncs.com/relay/image.png"
-                    "?Signature=temporary"
-                ),
-            },
-        )
+        task_id = await client.submit(MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"})
         result = await client.get_result(MINIMAX_H3_IMAGE_REFERENCE, task_id)
 
-    output = caplog.text
-    assert "AutoDL submit request" in output
-    assert '"ref_image_0":"https://bucket.oss-cn-chengdu.aliyuncs.com/' in output
-    assert "Signature=temporary" in output
-    assert "plain-token" not in output
     assert task_id == "task-1"
     assert result.output_url == "https://cdn.example/video.mp4"
     assert [request.headers["Authorization"] for request in requests] == [
@@ -134,17 +119,21 @@ class _FakeClient:
 
 
 @pytest.mark.asyncio
-async def test_generator_maps_nine_reference_images(monkeypatch, tmp_path):
+async def test_generator_maps_nine_reference_images_as_data_urls(tmp_path):
     fake = _FakeClient()
-    monkeypatch.setattr(
-        "novelvideo.storage.media_relay.upload_image_file",
-        lambda path, ttl: f"https://oss.example/{path.name}",
-    )
     references = []
+    extensions = ["png", "jpg", "webp"]
+    expected_values = []
     for index in range(9):
-        path = tmp_path / f"{index}.png"
-        path.write_bytes(b"image")
+        extension = extensions[index % len(extensions)]
+        image_bytes = f"image-{index}".encode("ascii")
+        path = tmp_path / f"{index}.{extension}"
+        path.write_bytes(image_bytes)
         references.append(ShotReference("image", str(path), "图片参考"))
+        mime_type = "image/jpeg" if extension == "jpg" else f"image/{extension}"
+        expected_values.append(
+            f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+        )
     output = tmp_path / "out.mp4"
     generator = AutoDLMinimaxH3ImageReferenceGenerator(client=fake, resolution="768p")
     result = await generator.generate(
@@ -157,9 +146,7 @@ async def test_generator_maps_nine_reference_images(monkeypatch, tmp_path):
 
     assert result.status == VideoGenStatus.DONE
     assert fake.payload["resolution"] == "768p竖"
-    assert [fake.payload[f"ref_image_{index}"] for index in range(9)] == [
-        f"https://oss.example/{index}.png" for index in range(9)
-    ]
+    assert [fake.payload[f"ref_image_{index}"] for index in range(9)] == expected_values
     assert "ref_image_9" not in fake.payload
 
 
