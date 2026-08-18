@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 import base64
+import logging
 import httpx
 import pytest
 
@@ -40,7 +41,7 @@ def test_minimax_h3_resolution_mapping(resolution, ratio, expected):
 
 
 @pytest.mark.asyncio
-async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
+async def test_autodl_client_uses_raw_authorization_for_submit_and_result(caplog):
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -60,14 +61,19 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
         )
 
     transport = httpx.MockTransport(handler)
-    async with httpx.AsyncClient(transport=transport) as http_client:
-        client = AutoDLWorkflowClient(
-            base_url="https://autodl.example",
-            token="plain-token",
-            client=http_client,
-        )
-        task_id = await client.submit(MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"})
-        result = await client.get_result(MINIMAX_H3_IMAGE_REFERENCE, task_id)
+    with caplog.at_level(
+        logging.INFO, logger="novelvideo.generators.autodl.client"
+    ):
+        async with httpx.AsyncClient(transport=transport) as http_client:
+            client = AutoDLWorkflowClient(
+                base_url="https://autodl.example",
+                token="plain-token",
+                client=http_client,
+            )
+            task_id = await client.submit(
+                MINIMAX_H3_IMAGE_REFERENCE, {"prompt": "move"}
+            )
+            result = await client.get_result(MINIMAX_H3_IMAGE_REFERENCE, task_id)
 
     assert task_id == "task-1"
     assert result.output_url == "https://cdn.example/video.mp4"
@@ -77,6 +83,13 @@ async def test_autodl_client_uses_raw_authorization_for_submit_and_result():
     ]
     assert requests[0].url.path.endswith("/minimax_h3_lightx2v_v5")
     assert requests[1].url.path.endswith("/result/task-1")
+    assert "AutoDL submit task response status_code=200" in caplog.text
+    assert "'task_id': 'task-1', 'status': 'QUEUED'" in caplog.text
+    assert (
+        "AutoDL query task response task_id=task-1 status_code=200" in caplog.text
+    )
+    assert "'url': 'https://cdn.example/video.mp4'" in caplog.text
+    assert "plain-token" not in caplog.text
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -10,6 +11,15 @@ from typing import Any, Callable
 import httpx
 
 from .workflows import AutoDLWorkflowSpec
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    logger.addHandler(_handler)
 
 
 @dataclass(frozen=True)
@@ -84,6 +94,11 @@ class AutoDLWorkflowClient:
         url = f"{self.base_url}{workflow.submit_path}"
         response = await self._request("POST", url, json=payload)
         data = response.json()
+        logger.info(
+            "AutoDL submit task response status_code=%s payload=%s",
+            response.status_code,
+            data,
+        )
         if not isinstance(data, dict):
             raise RuntimeError("AutoDL submit returned an invalid response")
         task_id = str(data.get("task_id") or "").strip()
@@ -99,6 +114,12 @@ class AutoDLWorkflowClient:
         path = workflow.result_path_template.format(task_id=task_id)
         response = await self._request("GET", f"{self.base_url}{path}")
         payload = response.json()
+        logger.info(
+            "AutoDL query task response task_id=%s status_code=%s payload=%s",
+            task_id,
+            response.status_code,
+            payload,
+        )
         if not isinstance(payload, dict):
             raise RuntimeError("AutoDL result query returned an invalid response")
         status = str(payload.get("status") or "").strip().lower()
