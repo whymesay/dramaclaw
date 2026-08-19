@@ -158,7 +158,15 @@ export function isVideoModeSupportedByModel(
   model: VideoModelRef,
 ): boolean {
   if (typeof model === "object" && model !== null && (model.supportedModes?.length ?? 0) > 0) {
-    return model.supportedModes?.includes(GEN_MODE_TO_CATALOG_MODE[mode]) ?? false;
+    const catalogMode = GEN_MODE_TO_CATALOG_MODE[mode];
+    // The media catalog contract uses snake_case, but older catalog entries (and
+    // the original AutoDL MiniMax H3 option) used the canvas' camelCase genMode.
+    // Accept both while persisted configurations migrate to the canonical form;
+    // otherwise filtering can produce zero tabs and the picker dereferences an
+    // undefined active tab while switching models.
+    return model.supportedModes?.some(
+      (supportedMode) => supportedMode === catalogMode || supportedMode === mode,
+    ) ?? false;
   }
   const modelId = videoModelIdOf(model);
   if (isHappyHorseVideoModel(modelId)) {

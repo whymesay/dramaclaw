@@ -161,6 +161,16 @@ describe("目录 supportedModes 是模式入口的单一事实来源", () => {
     supportedModes: ["text_to_video", "image_reference", "all_reference"],
   };
 
+  it("兼容旧目录的 camelCase 模式，避免 AutoDL H3 过滤出空模式列表", () => {
+    const legacyAutoDlH3 = {
+      apiModel: "autodl_minimax-h3-image-reference",
+      supportedModes: ["imageReference"],
+    };
+
+    expect(isVideoModeSupportedByModel("imageReference", legacyAutoDlH3)).toBe(true);
+    expect(videoEmptyStateCtaModes(legacyAutoDlH3)).toEqual(["imageReference"]);
+  });
+
   it("只声明 first_frame 的模型仍有真正首帧入口，不会误进图生视频", () => {
     expect(isVideoModeSupportedByModel("firstFrame", firstFrameOnly)).toBe(true);
     expect(isVideoModeSupportedByModel("imageToVideo", firstFrameOnly)).toBe(false);
